@@ -1,14 +1,14 @@
 [package]
 name = "flv"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["GengTeng <me@gteng.org>"]
 edition = "2018"
 license = "MIT"
 description = "FLV reader and writer library in Rust."
-documentation = "https://docs.rs/flv/0.0.1/flv/"
+documentation = "https://docs.rs/flv/0.0.2/flv/"
 readme = "README.md"
 keywords = ["flv", "reader", "writer", "tokio"]
-categories = ["Multimedia", "Audio", "Video", "Asynchronous"]
+categories = ["multimedia", "asynchronous", "filesystem"]
 repository = "https://github.com/gengteng/flv"
 
 [dependencies]
