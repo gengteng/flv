@@ -11,8 +11,17 @@ pub enum Error {
     #[cfg(feature = "io-std")]
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Read(#[from] ReadError),
     #[error("data size is too long: {0}")]
     DataSize(usize),
+}
+
+/// read error
+#[derive(ThisError, Debug, Eq, PartialEq)]
+pub enum ReadError {
+    #[error("end of file")]
+    Eof,
 }
 
 /// parse error
@@ -22,6 +31,12 @@ pub enum ParseError {
     HeaderSignature(u8, u8, u8),
     #[error("invalid reserved type flags format: 0x{0:X}")]
     HeaderTypeFlagsReserved(u8),
+    #[error("invalid version: 0x{0:X}")]
+    HeaderVersion(u8),
+    #[error("invalid data offset: 0x{0:X}")]
+    HeaderDataOffset(u32),
+    #[error("invalid metadata amf type")]
+    MetadataType,
     #[error("invalid sound format: 0x{0:X}")]
     SoundFormat(u8),
     #[error("invalid sound rate: 0x{0:X}")]

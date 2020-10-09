@@ -9,11 +9,12 @@ pub use crate::types::{
 
 #[macro_use]
 mod cfg;
+mod io;
 
 cfg_io_tokio! {
     pub mod tokio;
 }
 
 cfg_io_std! {
-    pub mod io;
+    pub mod stdio;
 }

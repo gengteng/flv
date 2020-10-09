@@ -20,6 +20,7 @@ pub struct Header {
 
 impl Header {
     pub const SIGNATURE: [u8; 3] = [b'F', b'L', b'V'];
+    pub const VERSION_1: u8 = 0x01;
     pub const SIZE: usize = 9;
 }
 
@@ -34,6 +35,10 @@ impl TryFrom<[u8; Header::SIZE]> for Header {
             [s1, s2, s3] => return Err(ParseError::HeaderSignature(s1, s2, s3)),
         }
 
+        if version != Self::VERSION_1 {
+            return Err(ParseError::HeaderVersion(version));
+        }
+
         let reserved_flag = 0b11111010 & flag;
         if reserved_flag != 0 {
             return Err(ParseError::HeaderTypeFlagsReserved(reserved_flag));
@@ -42,6 +47,10 @@ impl TryFrom<[u8; Header::SIZE]> for Header {
         let audio_flag = 0b00000100 & flag != 0;
         let video_flag = 0b00000001 & flag != 0;
         let data_offset = u32::from_be_bytes([d1, d2, d3, d4]);
+
+        if data_offset != Self::SIZE as u32 {
+            return Err(ParseError::HeaderDataOffset(data_offset));
+        }
 
         Ok(Self {
             version,
@@ -57,7 +66,7 @@ impl From<Header> for [u8; Header::SIZE] {
         let flag =
             if h.audio_flag { 0b0000100 } else { 0 } | if h.video_flag { 0b00000001 } else { 0 };
 
-        let [o1, o2, o3, o4] = h.data_offset.to_be_bytes();
+        let [o1, o2, o3, o4] = (Header::SIZE as u32).to_be_bytes();
 
         [
             Header::SIGNATURE[0],
@@ -79,7 +88,7 @@ fn parse_header() {
         version: 1,
         audio_flag: true,
         video_flag: true,
-        data_offset: 0x12345678,
+        data_offset: 9,
     };
 
     let bytes: [u8; Header::SIZE] = header.into();
@@ -454,7 +463,7 @@ impl From<SeekFlag> for u8 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, PartialOrd)]
 pub struct MetaData {
     pub duration: f64,
     pub width: f64,
