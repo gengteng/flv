@@ -15,11 +15,12 @@ repository = "https://github.com/gengteng/flv"
 thiserror = "1"
 amf = "0.3.1"
 tokio = { version = "0.2", features = ["io-util"], optional = true }
+anyhow = { version = "1", optional = true }
 
 [[example]]
 path = "examples/flv-dump.rs"
 name = "flv-dump"
-required-features = ["io-std"]
+required-features = ["io-std", "anyhow"]
 
 [[example]]
 path = "examples/flv-seek.rs"

@@ -1,12 +1,11 @@
 use flv::stdio::FlvReader;
 use flv::TagType;
-use std::error::Error;
 use std::fs::File;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let file = File::open("./test.flv")?;
 
-    let mut reader = FlvReader::new(file, ());
+    let mut reader = FlvReader::new(file);
     println!("flv header: {:?}", reader.read_header()?);
 
     let mut index = 0usize;

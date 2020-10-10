@@ -24,12 +24,12 @@ impl Header {
     pub const SIZE: usize = 9;
 }
 
-impl TryFrom<[u8; Header::SIZE]> for Header {
+impl TryFrom<&[u8; Header::SIZE]> for Header {
     type Error = ParseError;
 
-    fn try_from(
-        [f, l, v, version, flag, d1, d2, d3, d4]: [u8; Header::SIZE],
-    ) -> Result<Self, ParseError> {
+    fn try_from(value: &[u8; Header::SIZE]) -> Result<Self, ParseError> {
+        let [f, l, v, version, flag, d1, d2, d3, d4] = *value;
+
         match [f, l, v] {
             Self::SIGNATURE => {}
             [s1, s2, s3] => return Err(ParseError::HeaderSignature(s1, s2, s3)),
@@ -93,7 +93,7 @@ fn parse_header() {
 
     let bytes: [u8; Header::SIZE] = header.into();
 
-    let parsed = Header::try_from(bytes);
+    let parsed = Header::try_from(&bytes);
 
     assert_eq!(Ok(header), parsed);
     assert_eq!(Ok(bytes), parsed.map(|h| h.into()));
@@ -133,8 +133,9 @@ impl TagHeader {
     pub const MAX_DATA_SIZE: usize = 0x00ffffff; // u24::max_value()
 }
 
-impl From<[u8; TagHeader::SIZE]> for TagHeader {
-    fn from([tt, s1, s2, s3, t1, t2, t3, t0, _, _, _]: [u8; TagHeader::SIZE]) -> Self {
+impl From<&[u8; TagHeader::SIZE]> for TagHeader {
+    fn from(value: &[u8; TagHeader::SIZE]) -> Self {
+        let [tt, s1, s2, s3, t1, t2, t3, t0, _, _, _] = *value;
         let tag_type = match tt {
             8 => TagType::Audio,
             9 => TagType::Video,
@@ -197,7 +198,7 @@ impl TryFrom<u8> for SoundFormat {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         use SoundFormat::*;
-        Ok(match (value & 0b_1111_0000) >> 4 {
+        Ok(match value {
             0 => LinearPCMPlatformEndian,
             1 => ADPCM,
             2 => MP3,
@@ -219,7 +220,7 @@ impl TryFrom<u8> for SoundFormat {
 
 impl From<SoundFormat> for u8 {
     fn from(sf: SoundFormat) -> Self {
-        (sf as u8) << 4
+        sf as u8
     }
 }
 
@@ -236,7 +237,7 @@ impl TryFrom<u8> for SoundRate {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         use SoundRate::*;
-        Ok(match (value & 0b_0000_1100) >> 2 {
+        Ok(match value {
             0 => R5p5kHz,
             1 => R11kHz,
             2 => R22kHz,
@@ -248,7 +249,7 @@ impl TryFrom<u8> for SoundRate {
 
 impl From<SoundRate> for u8 {
     fn from(sr: SoundRate) -> Self {
-        (sr as u8) << 2
+        sr as u8
     }
 }
 
@@ -263,7 +264,7 @@ impl TryFrom<u8> for SoundSize {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         use SoundSize::*;
-        Ok(match (value & 0b_0000_0010) >> 1 {
+        Ok(match value {
             0 => S8Bit,
             1 => S16Bit,
             n => return Err(ParseError::SoundSize(n)),
@@ -273,7 +274,7 @@ impl TryFrom<u8> for SoundSize {
 
 impl From<SoundSize> for u8 {
     fn from(ss: SoundSize) -> Self {
-        (ss as u8) << 1
+        ss as u8
     }
 }
 
@@ -288,7 +289,7 @@ impl TryFrom<u8> for SoundType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         use SoundType::*;
-        Ok(match value & 0b_0000_0001 {
+        Ok(match value {
             0 => Mono,
             1 => Stereo,
             n => return Err(ParseError::SoundType(n)),
@@ -314,10 +315,10 @@ impl TryFrom<u8> for AudioDataHeader {
     type Error = ParseError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        let sound_format = SoundFormat::try_from(value)?;
-        let sound_rate = SoundRate::try_from(value)?;
-        let sound_size = SoundSize::try_from(value)?;
-        let sound_type = SoundType::try_from(value)?;
+        let sound_format = SoundFormat::try_from((value & 0b_1111_0000) >> 4)?;
+        let sound_rate = SoundRate::try_from((value & 0b_0000_1100) >> 2)?;
+        let sound_size = SoundSize::try_from((value & 0b_0000_0010) >> 1)?;
+        let sound_type = SoundType::try_from(value & 0b_0000_0001)?;
 
         Ok(Self {
             sound_format,
@@ -330,9 +331,9 @@ impl TryFrom<u8> for AudioDataHeader {
 
 impl From<AudioDataHeader> for u8 {
     fn from(h: AudioDataHeader) -> Self {
-        u8::from(h.sound_format)
-            | u8::from(h.sound_rate)
-            | u8::from(h.sound_size)
+        (u8::from(h.sound_format) << 4)
+            | (u8::from(h.sound_rate) << 2)
+            | (u8::from(h.sound_size) << 1)
             | u8::from(h.sound_type)
     }
 }
@@ -351,7 +352,7 @@ impl TryFrom<u8> for VideoFrameType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         use VideoFrameType::*;
-        Ok(match (value & 0xf0) >> 4 {
+        Ok(match value {
             1 => KeyFrame,
             2 => InterFrame,
             3 => DisposableInterFrame,
@@ -364,7 +365,7 @@ impl TryFrom<u8> for VideoFrameType {
 
 impl From<VideoFrameType> for u8 {
     fn from(vft: VideoFrameType) -> Self {
-        (vft as u8) << 4
+        vft as u8
     }
 }
 
@@ -385,7 +386,7 @@ impl TryFrom<u8> for VideoCodecId {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         use VideoCodecId::*;
-        Ok(match value & 0xf {
+        Ok(match value {
             1 => JPEG,
             2 => SorensonH263,
             3 => ScreenVideo,
@@ -415,8 +416,8 @@ impl TryFrom<u8> for VideoDataHeader {
     type Error = ParseError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        let frame_type = VideoFrameType::try_from(value)?;
-        let codec_id = VideoCodecId::try_from(value)?;
+        let frame_type = VideoFrameType::try_from(value >> 4)?;
+        let codec_id = VideoCodecId::try_from(value & 0xf)?;
 
         Ok(Self {
             frame_type,
@@ -427,7 +428,7 @@ impl TryFrom<u8> for VideoDataHeader {
 
 impl From<VideoDataHeader> for u8 {
     fn from(h: VideoDataHeader) -> Self {
-        u8::from(h.frame_type) | u8::from(h.codec_id)
+        (u8::from(h.frame_type) << 4) | u8::from(h.codec_id)
     }
 }
 

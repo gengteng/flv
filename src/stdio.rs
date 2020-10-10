@@ -9,7 +9,7 @@ use crate::{
 use amf::amf0::Value;
 use amf::Pair;
 use std::convert::TryFrom;
-use std::io::{ErrorKind, Read, Seek, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::mem::size_of;
 
 pub struct FlvWriter<W> {
@@ -82,21 +82,20 @@ impl<W: Write> FlvWriter<W> {
     }
 }
 
-pub struct FlvReader<R, C> {
+pub struct FlvReader<R> {
     reader: R,
-    cache: C,
 }
 
-impl<R: Read + Seek, C: IndexCache> FlvReader<R, C> {
-    pub fn new(reader: R, cache: C) -> Self {
-        Self { reader, cache }
+impl<R: Read> FlvReader<R> {
+    pub fn new(reader: R) -> Self {
+        Self { reader }
     }
 
     pub fn read_header(&mut self) -> Result<Header> {
         let mut buffer = [0u8; Header::SIZE];
         self.try_read_exact(&mut buffer)?;
 
-        Ok(Header::try_from(buffer)?)
+        Ok(Header::try_from(&buffer)?)
     }
 
     pub fn read_metadata(&mut self) -> Result<MetaData> {
@@ -158,7 +157,7 @@ impl<R: Read + Seek, C: IndexCache> FlvReader<R, C> {
             };
         }
 
-        Ok(Some(buffer.into()))
+        Ok(Some((&buffer).into()))
     }
 
     pub fn read_video_data_header(&mut self) -> Result<VideoDataHeader> {
