@@ -499,14 +499,14 @@ pub struct MetaData {
 }
 
 impl MetaData {
-    pub fn seek(&self, timestamp: u32) -> Option<u64> {
+    pub fn seek(&self, timestamp: u32) -> Option<(u32, u64)> {
         let mut target = None;
         if let Some(keyframes) = &self.keyframes {
             for (ts, offset) in keyframes {
                 match ts.cmp(&timestamp) {
-                    Ordering::Less => target = Some(*offset),
+                    Ordering::Less => target = Some((*ts, *offset)),
                     Ordering::Greater => break,
-                    Ordering::Equal => return Some(*offset),
+                    Ordering::Equal => return Some((timestamp, *offset)),
                 }
             }
             target

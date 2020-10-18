@@ -25,7 +25,7 @@ required-features = ["io-std", "anyhow", "structopt"]
 [[example]]
 path = "examples/flv-seek.rs"
 name = "flv-seek"
-required-features = ["io-std", "anyhow"]
+required-features = ["io-std", "anyhow", "structopt"]
 
 [[example]]
 path = "examples/flv-slice.rs"

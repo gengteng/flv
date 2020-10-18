@@ -49,8 +49,8 @@ fn main() -> anyhow::Result<()> {
                         let metadata = reader.read_metadata()?;
                         println!("metadata: {:?}", metadata);
                     }
-                    tt => {
-                        println!("unexpected tag type: {:?}", tt);
+                    TagType::Reserved(tt) => {
+                        println!("unexpected tag type: 0x{:x?}", tt);
                     }
                 }
 

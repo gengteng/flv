@@ -7,7 +7,7 @@ use crate::{
 };
 use core::convert::TryFrom;
 use std::collections::BTreeMap;
-use std::io::{ErrorKind, Read, Write};
+use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
 
 pub struct FlvWriter<W> {
     writer: W,
@@ -439,5 +439,11 @@ impl<R: Read> FlvReader<R> {
         } else {
             Ok(())
         }
+    }
+}
+
+impl<R: Read + Seek> FlvReader<R> {
+    pub fn seek(&mut self, offset: u64) -> Result<u64> {
+        Ok(self.reader.seek(SeekFrom::Start(offset))?)
     }
 }
