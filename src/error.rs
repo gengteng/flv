@@ -1,3 +1,4 @@
+use std::string::FromUtf8Error;
 use thiserror::Error as ThisError;
 
 /// A `Result` typedef to use with the `flv::Error` type
@@ -15,6 +16,12 @@ pub enum Error {
     Read(#[from] ReadError),
     #[error("data size is too long: {0}")]
     DataSize(usize),
+    #[error("invalid utf8 string: {0}")]
+    Utf8(#[from] FromUtf8Error),
+    #[error("unknown error: {0}")]
+    Other(&'static str),
+    #[error("unimplemented: {0}")]
+    Unimplemented(String),
 }
 
 /// read error

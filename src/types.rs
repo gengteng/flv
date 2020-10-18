@@ -1,5 +1,7 @@
 use crate::error::ParseError;
-use std::convert::TryFrom;
+use core::convert::TryFrom;
+use std::cmp::Ordering;
+use std::collections::BTreeMap;
 
 /// FLV file header
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -464,17 +466,52 @@ impl From<SeekFlag> for u8 {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Default, Clone)]
 pub struct MetaData {
     pub duration: f64,
     pub width: f64,
     pub height: f64,
-    pub videodatarate: f64,
+    pub video_data_rate: f64,
     pub framerate: f64,
-    pub videocodecid: f64,
-    pub audiosamplerate: f64,
-    pub audiosamplesize: f64,
+    pub video_codec_id: f64,
+    pub audio_date_rate: f64,
+    pub audio_sample_rate: f64,
+    pub audio_sample_size: f64,
     pub stereo: bool,
-    pub audiocodecid: f64,
+    pub audio_codec_id: f64,
+    pub major_brand: String,
+    pub minor_version: String,
+    pub compatible_brands: String,
+    pub encoder: String,
     pub filesize: f64,
+    pub has_video: bool,
+    pub has_keyframes: bool,
+    pub has_audio: bool,
+    pub has_metadata: bool,
+    pub can_seek_to_end: bool,
+    pub data_size: f64,
+    pub video_size: f64,
+    pub audio_size: f64,
+    pub last_timestamp: f64,
+    pub last_keyframe_timestamp: f64,
+    pub last_keyframe_location: f64,
+    pub keyframes: Option<BTreeMap<u32, u64>>,
+}
+
+impl MetaData {
+    pub fn seek(&self, timestamp: u32) -> Option<u64> {
+        let mut target = None;
+        if let Some(keyframes) = &self.keyframes {
+            for (ts, offset) in keyframes {
+                match ts.cmp(&timestamp) {
+                    Ordering::Less => target = Some(*offset),
+                    Ordering::Greater => break,
+                    Ordering::Equal => return Some(*offset),
+                }
+            }
+            target
+        } else {
+            None
+        }
+    }
 }

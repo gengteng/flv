@@ -1,9 +1,22 @@
 use flv::stdio::FlvReader;
 use flv::TagType;
 use std::fs::File;
+use std::path::PathBuf;
+use structopt::StructOpt;
+
+/// flv dump
+#[derive(Debug, StructOpt)]
+#[structopt(name = "flv-dump", about = "A flv file dump tool.")]
+struct Opts {
+    /// flv file path
+    #[structopt(short = "f", long = "file", parse(from_os_str))]
+    file: PathBuf,
+}
 
 fn main() -> anyhow::Result<()> {
-    let file = File::open("./test.flv")?;
+    let opts: Opts = Opts::from_args();
+
+    let file = File::open(opts.file)?;
 
     let mut reader = FlvReader::new(file);
     println!("flv header: {:?}", reader.read_header()?);
@@ -19,15 +32,22 @@ fn main() -> anyhow::Result<()> {
                     TagType::Audio => {
                         let audio_header = reader.read_audio_data_header()?;
                         println!("audio header: {:?}", audio_header);
-                        println!("audio data: {} bytes", reader.read_data(tag_header)?.len());
+                        println!(
+                            "audio data: {} bytes",
+                            reader.read_data(tag_header.data_size as usize - 1)?.len()
+                        );
                     }
                     TagType::Video => {
                         let video_header = reader.read_video_data_header()?;
                         println!("video header: {:?}", video_header);
-                        println!("video data: {} bytes", reader.read_data(tag_header)?.len());
+                        println!(
+                            "video data: {} bytes",
+                            reader.read_data(tag_header.data_size as usize - 1)?.len()
+                        );
                     }
                     TagType::ScriptData => {
-                        println!("metadata: {:?}", reader.read_metadata()?);
+                        let metadata = reader.read_metadata()?;
+                        println!("metadata: {:?}", metadata);
                     }
                     tt => {
                         println!("unexpected tag type: {:?}", tt);

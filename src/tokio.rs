@@ -3,7 +3,7 @@
 use crate::{
     AudioDataHeader, Error, Header, MetaData, Result, TagHeader, TagType, VideoDataHeader,
 };
-use std::convert::TryFrom;
+use core::convert::TryFrom;
 use std::io::SeekFrom;
 use tokio::prelude::io::*;
 
@@ -89,12 +89,10 @@ impl<R: AsyncRead + AsyncSeek + Unpin> FlvReader<R> {
     }
 
     pub async fn read_header(&mut self) -> Result<Header> {
-        self.reader.seek(SeekFrom::Start(0)).await?;
-
         let mut buffer = [0u8; Header::SIZE];
         self.reader.read_exact(&mut buffer).await?;
 
-        Ok(Header::try_from(buffer)?)
+        Ok(Header::try_from(&buffer)?)
     }
 
     pub async fn read_metadata(&mut self) -> Result<MetaData> {
@@ -105,7 +103,7 @@ impl<R: AsyncRead + AsyncSeek + Unpin> FlvReader<R> {
         let mut buffer = [0u8; TagHeader::SIZE];
         self.reader.read_exact(&mut buffer).await?;
 
-        Ok(buffer.into())
+        Ok((&buffer).into())
     }
 
     pub async fn read_video_data_header(&mut self) -> Result<VideoDataHeader> {

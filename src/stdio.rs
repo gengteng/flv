@@ -3,14 +3,11 @@
 use crate::error::ReadError;
 pub use crate::io::*;
 use crate::{
-    AudioDataHeader, Error, Header, MetaData, ParseError, Result, TagHeader, TagType,
-    VideoDataHeader,
+    AudioDataHeader, Error, Header, MetaData, Result, TagHeader, TagType, VideoDataHeader,
 };
-use amf::amf0::Value;
-use amf::Pair;
-use std::convert::TryFrom;
+use core::convert::TryFrom;
+use std::collections::BTreeMap;
 use std::io::{ErrorKind, Read, Write};
-use std::mem::size_of;
 
 pub struct FlvWriter<W> {
     writer: W,
@@ -99,50 +96,287 @@ impl<R: Read> FlvReader<R> {
     }
 
     pub fn read_metadata(&mut self) -> Result<MetaData> {
-        let _name = amf::Amf0Value::read_from(&mut self.reader).unwrap();
-        let value = amf::Amf0Value::read_from(&mut self.reader).unwrap();
-
         let mut metadata = MetaData::default();
 
-        match value {
-            Value::EcmaArray { mut entries } => {
-                for Pair { key, value } in entries.drain(..) {
-                    match (key.as_str(), value) {
-                        ("duration", Value::Number(duration)) => metadata.duration = duration,
-                        ("width", Value::Number(width)) => metadata.width = width,
-                        ("height", Value::Number(height)) => metadata.height = height,
-                        ("videodatarate", Value::Number(videodatarate)) => {
-                            metadata.videodatarate = videodatarate
-                        }
-                        ("framerate", Value::Number(framerate)) => metadata.framerate = framerate,
-                        ("videocodecid", Value::Number(videocodecid)) => {
-                            metadata.videocodecid = videocodecid
-                        }
-                        ("audiosamplerate", Value::Number(audiosamplerate)) => {
-                            metadata.audiosamplerate = audiosamplerate
-                        }
-                        ("audiosamplesize", Value::Number(audiosamplesize)) => {
-                            metadata.audiosamplesize = audiosamplesize
-                        }
-                        ("stereo", Value::Boolean(stereo)) => metadata.stereo = stereo,
-                        ("audiocodecid", Value::Number(audiocodecid)) => {
-                            metadata.audiocodecid = audiocodecid
-                        }
-                        ("filesize", Value::Number(filesize)) => metadata.filesize = filesize,
-                        _ => (),
+        let marker = {
+            let mut marker = [0u8; 1];
+            self.reader.read_exact(&mut marker)?;
+            marker[0]
+        };
+
+        if marker != 0x02 {
+            return Err(Error::Other("marker error"));
+        }
+
+        let len = {
+            let mut len = [0u8; 2];
+            self.reader.read_exact(&mut len)?;
+            u16::from_be_bytes(len)
+        } as usize;
+
+        let name = {
+            let mut name = vec![0u8; len];
+            self.reader.read_exact(&mut name)?;
+            String::from_utf8(name)?
+        };
+
+        if name != "onMetaData" {
+            return Err(Error::Other("invalid onMetaData"));
+        }
+
+        // ECMA Array
+        let marker = {
+            let mut marker = [0u8; 1];
+            self.reader.read_exact(&mut marker)?;
+            marker[0]
+        };
+
+        if marker != 0x08 {
+            return Err(Error::Other("marker error"));
+        }
+
+        let array_len = {
+            let mut array_len = [0u8; 4];
+            self.reader.read_exact(&mut array_len)?;
+            u32::from_be_bytes(array_len)
+        } as usize;
+
+        for _ in 0..array_len {
+            let len = {
+                let mut len = [0u8; 2];
+                self.reader.read_exact(&mut len)?;
+                u16::from_be_bytes(len)
+            } as usize;
+
+            let key = {
+                let mut key = vec![0u8; len];
+                self.reader.read_exact(&mut key)?;
+                String::from_utf8(key)?
+            };
+
+            let marker = {
+                let mut marker = [0u8; 1];
+                self.reader.read_exact(&mut marker)?;
+                marker[0]
+            };
+
+            match marker {
+                0 => {
+                    // double
+                    let value = {
+                        let mut value = [0u8; 8];
+                        self.reader.read_exact(&mut value)?;
+                        f64::from_be_bytes(value)
+                    };
+
+                    match key.as_str() {
+                        "duration" => metadata.duration = value,
+                        "width" => metadata.width = value,
+                        "height" => metadata.height = value,
+                        "videodatarate" => metadata.video_data_rate = value,
+                        "framerate" => metadata.framerate = value,
+                        "videocodecid" => metadata.video_codec_id = value,
+                        "audiodatarate" => metadata.audio_date_rate = value,
+                        "audiosamplerate" => metadata.audio_sample_rate = value,
+                        "audiosamplesize" => metadata.audio_sample_size = value,
+                        "audiocodecid" => metadata.audio_codec_id = value,
+                        "filesize" => metadata.filesize = value,
+                        "datasize" => metadata.data_size = value,
+                        "videosize" => metadata.video_size = value,
+                        "audiosize" => metadata.audio_size = value,
+                        "lasttimestamp" => metadata.last_timestamp = value,
+                        "lastkeyframetimestamp" => metadata.last_keyframe_timestamp = value,
+                        "lastkeyframelocation" => metadata.last_keyframe_location = value,
+                        _ => {}
                     }
                 }
-            }
-            _ => {
-                return Err(Error::Parse(ParseError::MetadataType));
+                1 => {
+                    // bool
+                    let value = {
+                        let mut value = [0u8; 1];
+                        self.reader.read_exact(&mut value)?;
+                        value[0]
+                    } != 0;
+
+                    match key.as_str() {
+                        "stereo" => metadata.stereo = value,
+                        "hasVideo" => metadata.has_video = value,
+                        "hasKeyframes" => metadata.has_keyframes = value,
+                        "hasAudio" => metadata.has_audio = value,
+                        "hasMetadata" => metadata.has_metadata = value,
+                        "canSeekToEnd" => metadata.can_seek_to_end = value,
+                        _ => {}
+                    }
+                }
+                2 => {
+                    // string
+                    let len = {
+                        let mut len = [0u8; 2];
+                        self.reader.read_exact(&mut len)?;
+                        u16::from_be_bytes(len)
+                    } as usize;
+
+                    let value = {
+                        let mut value = vec![0u8; len];
+                        self.reader.read_exact(&mut value)?;
+                        String::from_utf8(value)?
+                    };
+
+                    match key.as_str() {
+                        "major_brand" => metadata.major_brand = value,
+                        "minor_version" => metadata.minor_version = value,
+                        "compatible_brands" => metadata.compatible_brands = value,
+                        "encoder" => metadata.encoder = value,
+                        _ => {}
+                    }
+                }
+                3 if key == "keyframes" => {
+                    //script data object array
+
+                    let len = {
+                        let mut len = [0u8; 2];
+                        self.reader.read_exact(&mut len)?;
+                        u16::from_be_bytes(len)
+                    } as usize;
+
+                    let key = {
+                        let mut key = vec![0u8; len];
+                        self.reader.read_exact(&mut key)?;
+                        String::from_utf8(key)?
+                    };
+
+                    if key != "filepositions" {
+                        return Err(Error::Other("invalid filepositions key"));
+                    }
+
+                    let marker = {
+                        let mut marker = [0u8; 1];
+                        self.reader.read_exact(&mut marker)?;
+                        marker[0]
+                    };
+
+                    if marker != 0x0a {
+                        return Err(Error::Other("invalid filepositions marker"));
+                    }
+
+                    let len = {
+                        let mut len = [0u8; 4];
+                        self.reader.read_exact(&mut len)?;
+                        u32::from_be_bytes(len)
+                    } as usize;
+
+                    let mut positions = Vec::with_capacity(len);
+
+                    for _ in 0..len {
+                        let marker = {
+                            let mut marker = [0u8; 1];
+                            self.reader.read_exact(&mut marker)?;
+                            marker[0]
+                        };
+
+                        if marker != 0 {
+                            return Err(Error::Other("invalid filepositions item marker"));
+                        }
+
+                        positions.push({
+                            let mut value = [0u8; 8];
+                            self.reader.read_exact(&mut value)?;
+                            f64::from_be_bytes(value)
+                        } as u64);
+                    }
+
+                    let len = {
+                        let mut len = [0u8; 2];
+                        self.reader.read_exact(&mut len)?;
+                        u16::from_be_bytes(len)
+                    } as usize;
+
+                    let key = {
+                        let mut key = vec![0u8; len];
+                        self.reader.read_exact(&mut key)?;
+                        String::from_utf8(key)?
+                    };
+
+                    if key != "times" {
+                        return Err(Error::Other("invalid times key"));
+                    }
+
+                    let marker = {
+                        let mut marker = [0u8; 1];
+                        self.reader.read_exact(&mut marker)?;
+                        marker[0]
+                    };
+
+                    if marker != 0x0a {
+                        return Err(Error::Other("invalid times marker"));
+                    }
+
+                    let len = {
+                        let mut len = [0u8; 4];
+                        self.reader.read_exact(&mut len)?;
+                        u32::from_be_bytes(len)
+                    } as usize;
+
+                    let mut times = Vec::with_capacity(len);
+
+                    for _ in 0..len {
+                        let marker = {
+                            let mut marker = [0u8; 1];
+                            self.reader.read_exact(&mut marker)?;
+                            marker[0]
+                        };
+
+                        if marker != 0 {
+                            return Err(Error::Other("invalid times item marker"));
+                        }
+
+                        times.push(
+                            ({
+                                let mut value = [0u8; 8];
+                                self.reader.read_exact(&mut value)?;
+                                f64::from_be_bytes(value)
+                            } * 1000.0) as u32,
+                        );
+                    }
+
+                    let map = times
+                        .drain(..)
+                        .zip(positions.drain(..))
+                        .collect::<BTreeMap<_, _>>();
+
+                    metadata.keyframes = Some(map);
+
+                    self.read_end_marker()?;
+                }
+                n => {
+                    return Err(Error::Unimplemented(format!(
+                        "unimplemented script object type: {}",
+                        n
+                    )))
+                }
             }
         }
 
+        self.read_end_marker()?;
         Ok(metadata)
     }
 
+    pub fn read_end_marker(&mut self) -> Result<()> {
+        let end = {
+            let mut end = [0u8; 3];
+            self.reader.read_exact(&mut end)?;
+            u32::from_be_bytes([0, end[0], end[1], end[2]])
+        };
+
+        if end != 9 {
+            return Err(Error::Other("invalid end of object"));
+        }
+
+        Ok(())
+    }
+
     pub fn read_pre_tag_size(&mut self) -> Result<u32> {
-        let mut buffer = [0u8; size_of::<u32>()];
+        let mut buffer = [0u8; 4];
         self.try_read_exact(&mut buffer)?;
 
         Ok(u32::from_be_bytes(buffer))
@@ -174,9 +408,9 @@ impl<R: Read> FlvReader<R> {
         Ok(AudioDataHeader::try_from(buffer[0])?)
     }
 
-    pub fn read_data(&mut self, TagHeader { data_size, .. }: TagHeader) -> Result<Vec<u8>> {
-        let mut buffer = vec![0u8; data_size as usize - 1];
-        self.try_read_exact(&mut buffer[..data_size as usize - 1])?;
+    pub fn read_data(&mut self, len: usize) -> Result<Vec<u8>> {
+        let mut buffer = vec![0u8; len];
+        self.try_read_exact(&mut buffer[..len])?;
         Ok(buffer)
     }
 

@@ -13,24 +13,29 @@ repository = "https://github.com/gengteng/flv"
 
 [dependencies]
 thiserror = "1"
-amf = "0.3.1"
 tokio = { version = "0.2", features = ["io-util"], optional = true }
 anyhow = { version = "1", optional = true }
+structopt = { version = "0.3", optional = true}
 
 [[example]]
 path = "examples/flv-dump.rs"
 name = "flv-dump"
-required-features = ["io-std", "anyhow"]
+required-features = ["io-std", "anyhow", "structopt"]
 
 [[example]]
 path = "examples/flv-seek.rs"
 name = "flv-seek"
+required-features = ["io-std", "anyhow"]
 
 [[example]]
 path = "examples/flv-slice.rs"
 name = "flv-slice"
 
+[[bin]]
+path = "bin/main.rs"
+name = "flv"
+
 [features]
 io-std = []
-io-tokio = ["tokio"]
+io-tokio = ["io-std", "tokio"]
 full = ["io-std", "io-tokio"]
